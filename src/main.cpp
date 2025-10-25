@@ -3,32 +3,42 @@
 #include <Preferences.h>
 #include "Bluetooth.h"
 #include "Webserver.h"
+#include "WiFiManager.h"
 
 Preferences preferences;
 ImprovWiFi improvSerial(&Serial);
+WiFiManager wifiManager;
 
 void loop_connected();
 void setup_connected();
 void setup_wifi_post();
 
 void onImprovWiFiErrorCb(ImprovTypes::Error err) {
-  Serial.println("[Improv] WiFi failed! Reconnecting to saved one...");
+  Serial.println("[Improv] WiFi failed! Reconnecting to saved networks...");
   setup_wifi_post();
 }
 
 void onImprovWiFiConnectedCb(const char *ssid, const char *password) {
   Serial.println("[Improv] Got WiFi credentials! (no, we won't leak them here :/)");
-  preferences.begin("wifi", false); // namespace "wifi"
-  preferences.putString("ssid", ssid);
-  preferences.putString("pass", password);
-  preferences.end();
+  // Store as first network (index 0)
+  wifiManager.setNetwork(0, ssid, password);
   setup_wifi_post();
 }
 
 bool connectWifi(const char *ssid, const char *password) {
+  // This is called by Improv to connect to a new network
+  // We'll store it and attempt connection
+  wifiManager.setNetwork(0, ssid, password);
+
+  // Attempt connection with timeout
+  unsigned long startTime = millis();
   WiFi.begin(ssid, password);
-  while (!improvSerial.isConnected()) {}
-  return true;
+
+  while (!WiFi.isConnected() && (millis() - startTime) < WIFI_CONNECT_TIMEOUT_MS) {
+    delay(100);
+  }
+
+  return WiFi.isConnected();
 }
 
 void setup_wifi_pre() {
@@ -40,32 +50,23 @@ void setup_wifi_pre() {
 }
 
 void setup_wifi_post() {
-  preferences.begin("wifi", true); // read-only
-  String ssid = preferences.getString("ssid", "");
-  String pass = preferences.getString("pass", "");
-  preferences.end();
-  if(ssid.equals("")) {
-    Serial.println("[WiFi] No credentials set! Not connecting!");
+  wifiManager.printNetworks();
+
+  if (wifiManager.getNetworkCount() == 0) {
+    Serial.println("[WiFi] No credentials set! Waiting for Improv configuration...");
     return;
   }
 
-  Serial.print("[WiFi] Connecting to SSID: " + ssid);
-  WiFi.begin(ssid, pass);
-  while(!WiFi.isConnected()) {
-    Serial.print(".");
-    delay(500);
+  if (wifiManager.connectToNextNetwork()) {
+    setup_connected();
+  } else {
+    Serial.println("[WiFi] Failed to connect to any network!");
   }
-  Serial.println("OK");
-  Serial.println("[WiFi] Connected!");
-
-  Serial.print("[WiFi] IP: ");
-  Serial.println(WiFi.localIP());
-  setup_connected();
 }
 
 void setup_improv() {
   Serial.println("[Improv] Setting up...");
-  improvSerial.setDeviceInfo(ImprovTypes::ChipFamily::CF_ESP32_S3, "iPixel-Server", "1.0.0", "ESP32", "http://{LOCAL_IPV4}?name=Guest");
+  improvSerial.setDeviceInfo(ImprovTypes::ChipFamily::CF_ESP32, "iPixel-Server", "1.0.0", "ESP32", "http://{LOCAL_IPV4}?name=Guest");
   improvSerial.onImprovError(onImprovWiFiErrorCb);
   improvSerial.onImprovConnected(onImprovWiFiConnectedCb);
   improvSerial.setCustomConnectWiFi(connectWifi);
@@ -76,6 +77,10 @@ void setup() {
   delay(2000);
   Serial.begin(115200);
   Serial.println("[Setup] Hello World! Let's hope we can pixel together!");
+
+  // Initialize WiFiManager BEFORE using it
+  wifiManager.init();
+
   setup_wifi_pre();
   setup_improv();
   setup_wifi_post();
@@ -88,6 +93,10 @@ void setup_connected() {
 
 void loop() {
   improvSerial.handleSerial();
+
+  // Handle WiFi reconnection if disconnected
+  wifiManager.handleReconnection();
+
   if (improvSerial.isConnected()) loop_connected();
 }
 

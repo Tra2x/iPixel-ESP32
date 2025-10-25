@@ -44,6 +44,9 @@ public:
     void setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24);
     void setRhythmLevelMode(int style, const int levels[11]);
     void setRhythmAnimationMode(int style, int frame);
+    void setRhythmAnimationMode2(int style, int animationTime);
     void sendText(const String& text, int animation, int save_slot, int speed, uint8_t colorR, uint8_t colorG, uint8_t colorB, int rainbow_mode, int matrix_height);
+    void sendPNG(const std::vector<uint8_t>& pngData);
+    void sendAnimation(const std::vector<uint8_t>& gifData);
 
 };

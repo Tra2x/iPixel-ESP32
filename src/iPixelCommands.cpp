@@ -207,6 +207,21 @@ namespace iPixelCommands {
         return frame;
     }
 
+    std::vector<uint8_t> setRhythmAnimationMode2(int style, int animationTime) {
+        checkRange("Style", style, 0, 1);
+        checkRange("Animation Time", animationTime, 0, 7);
+
+        std::vector<uint8_t> frame(6);
+        frame[0] = 0x06;
+        frame[1] = 0x00;
+        frame[2] = 0x00;
+        frame[3] = 0x02;
+        frame[4] = (uint8_t)animationTime;
+        frame[5] = (uint8_t)style;
+
+        return frame;
+    }
+
     std::vector<uint8_t> encodeText(const String& text, int matrix_height, uint8_t r, uint8_t g, uint8_t b) {
         std::vector<uint8_t> frame;
         uint8_t matrix_height_byte = (uint8_t)matrix_height;
@@ -313,6 +328,132 @@ namespace iPixelCommands {
         result.insert(result.end(), crc_bytes.begin(), crc_bytes.end());
         result.insert(result.end(), save_slot_bytes.begin(), save_slot_bytes.end());
         result.insert(result.end(), payload.begin(), payload.end());
+
+        return result;
+    }
+
+    std::vector<uint8_t> sendPNG(const std::vector<uint8_t>& pngData) {
+        if (pngData.empty()) {
+            throw std::invalid_argument("PNG data cannot be empty");
+        }
+
+        // Python implementation:
+        // checksum = CRC32_checksum(png_hex)
+        // size = get_frame_size(png_hex, 8)
+        // return bytes.fromhex(f"{get_frame_size('FFFF020000' + size + checksum + '0065' + png_hex, 4)}020000{size}{checksum}0065{png_hex}")
+
+        // This means:
+        // 1. Calculate size of PNG data (as 8-char hex string, then endian-switched)
+        // 2. Calculate CRC32 of PNG data
+        // 3. Build inner: 'FFFF020000' + size + checksum + '0065' + png_hex
+        // 4. Calculate frame_size of inner (as 4-char hex string, then endian-switched)
+        // 5. Result: frame_size + '020000' + size + checksum + '0065' + png_data
+
+        // Calculate PNG data size in bytes
+        uint32_t png_size = pngData.size();
+
+        // Convert to 4-byte hex string (8 hex chars = 4 bytes)
+        char size_hex[9];
+        snprintf(size_hex, sizeof(size_hex), "%08x", png_size);
+
+        // Convert hex string to bytes and switch endian
+        std::vector<uint8_t> png_size_bytes;
+        for (int i = 6; i >= 0; i -= 2) {
+            char byte_str[3] = {size_hex[i], size_hex[i+1], '\0'};
+            png_size_bytes.push_back((uint8_t)strtol(byte_str, nullptr, 16));
+        }
+
+        // Calculate CRC32 of PNG data
+        std::vector<uint8_t> crc_bytes = Helpers::calculateCRC32Bytes(pngData);
+
+        // Build inner payload for frame size calculation: "FFFF020000" + size + checksum + "0065" + png_data
+        // This is used ONLY to calculate the frame size
+        uint32_t inner_size = 5 + 4 + 4 + 2 + pngData.size();  // FFFF020000 + size + checksum + 0065 + png_data
+
+        // Convert to 2-byte hex string (4 hex chars = 2 bytes) and switch endian
+        char frame_size_hex[5];
+        snprintf(frame_size_hex, sizeof(frame_size_hex), "%04x", inner_size);
+
+        std::vector<uint8_t> frame_size_bytes;
+        for (int i = 2; i >= 0; i -= 2) {
+            char byte_str[3] = {frame_size_hex[i], frame_size_hex[i+1], '\0'};
+            frame_size_bytes.push_back((uint8_t)strtol(byte_str, nullptr, 16));
+        }
+
+        // Build final result: frame_size + "020000" + size + checksum + "0065" + png_data
+        std::vector<uint8_t> result;
+        result.insert(result.end(), frame_size_bytes.begin(), frame_size_bytes.end());
+        result.push_back(0x02);
+        result.push_back(0x00);
+        result.push_back(0x00);
+        result.insert(result.end(), png_size_bytes.begin(), png_size_bytes.end());
+        result.insert(result.end(), crc_bytes.begin(), crc_bytes.end());
+        result.push_back(0x00);
+        result.push_back(0x65);
+        result.insert(result.end(), pngData.begin(), pngData.end());
+
+        return result;
+    }
+
+    std::vector<uint8_t> sendAnimation(const std::vector<uint8_t>& gifData) {
+        if (gifData.empty()) {
+            throw std::invalid_argument("GIF data cannot be empty");
+        }
+
+        // Python implementation:
+        // checksum = CRC32_checksum(gif_hex)
+        // size = get_frame_size(gif_hex, 8)
+        // return bytes.fromhex(f"{get_frame_size('FFFF030000' + size + checksum + '0201' + gif_hex, 4)}030000{size}{checksum}0201{gif_hex}")
+
+        // This means:
+        // 1. Calculate size of GIF data (as 8-char hex string, then endian-switched)
+        // 2. Calculate CRC32 of GIF data
+        // 3. Build inner: 'FFFF030000' + size + checksum + '0201' + gif_hex
+        // 4. Calculate frame_size of inner (as 4-char hex string, then endian-switched)
+        // 5. Result: frame_size + '030000' + size + checksum + '0201' + gif_data
+
+        // Calculate GIF data size in bytes
+        uint32_t gif_size = gifData.size();
+
+        // Convert to 4-byte hex string (8 hex chars = 4 bytes)
+        char size_hex[9];
+        snprintf(size_hex, sizeof(size_hex), "%08x", gif_size);
+
+        // Convert hex string to bytes and switch endian
+        std::vector<uint8_t> gif_size_bytes;
+        for (int i = 6; i >= 0; i -= 2) {
+            char byte_str[3] = {size_hex[i], size_hex[i+1], '\0'};
+            gif_size_bytes.push_back((uint8_t)strtol(byte_str, nullptr, 16));
+        }
+
+        // Calculate CRC32 of GIF data
+        std::vector<uint8_t> crc_bytes = Helpers::calculateCRC32Bytes(gifData);
+
+        // Build inner payload for frame size calculation: "FFFF030000" + size + checksum + "0201" + gif_data
+        // This is used ONLY to calculate the frame size
+        uint32_t inner_size = 5 + 4 + 4 + 2 + gifData.size();  // FFFF030000 + size + checksum + 0201 + gif_data
+
+        // Convert to 2-byte hex string (4 hex chars = 2 bytes) and switch endian
+        char frame_size_hex[5];
+        snprintf(frame_size_hex, sizeof(frame_size_hex), "%04x", inner_size);
+
+        std::vector<uint8_t> frame_size_bytes;
+        for (int i = 2; i >= 0; i -= 2) {
+            char byte_str[3] = {frame_size_hex[i], frame_size_hex[i+1], '\0'};
+            frame_size_bytes.push_back((uint8_t)strtol(byte_str, nullptr, 16));
+        }
+
+        // Build final result: frame_size + "030000" + size + checksum + "0201" + gif_data
+        std::vector<uint8_t> result;
+        result.insert(result.end(), frame_size_bytes.begin(), frame_size_bytes.end());
+        result.push_back(0x03);
+        result.push_back(0x00);
+        result.push_back(0x00);
+        result.insert(result.end(), gif_size_bytes.begin(), gif_size_bytes.end());
+        result.insert(result.end(), crc_bytes.begin(), crc_bytes.end());
+        result.push_back(0x02);
+        result.push_back(0x01);
+        result.insert(result.end(), gifData.begin(), gifData.end());
 
         return result;
     }

@@ -74,6 +74,15 @@ void iPixelDevice::queueTick() {
     //Take bytes from command
     size_t chunkSize = min(500, (int)command.size());
 
+    //Print bytes as HEX BEFORE erasing
+    Serial.print("Data: ");
+    for (size_t i = 0; i < chunkSize; i++) {
+        if (command[i] < 0x10) Serial.print('0'); // leading zero for single-digit hex
+        Serial.print(command[i], HEX);
+        Serial.print(' ');
+    }
+    Serial.println();
+
     //Write bytes from command
     characteristic->writeValue(command.data(), chunkSize, false);
 
@@ -89,15 +98,6 @@ void iPixelDevice::queueTick() {
     Serial.print(") (queue size: ");
     Serial.print(queue.size());
     Serial.println(")");
-
-    //Print bytes as HEX
-    Serial.print("Data: ");
-    for (size_t i = 0; i < chunkSize; i++) {
-        if (command[i] < 0x10) Serial.print('0'); // leading zero for single-digit hex
-        Serial.print(command[i], HEX);
-        Serial.print(' ');
-    }
-    Serial.println();
 
     //Remove command if empty
     if (command.empty()) queue.erase(queue.begin());
@@ -282,5 +282,33 @@ void iPixelDevice::sendText(const String& text, int animation, int save_slot, in
     Serial.print(rainbow_mode);
     Serial.print(", matrix_height=");
     Serial.println(matrix_height);
+    queuePush(command);
+};
+
+void iPixelDevice::setRhythmAnimationMode2(int style, int animationTime) {
+    std::vector<uint8_t> command = iPixelCommands::setRhythmAnimationMode2(style, animationTime);
+    printPrefix();
+    Serial.print("Rhythm Animation Mode 2: style=");
+    Serial.print(style);
+    Serial.print(", animationTime=");
+    Serial.println(animationTime);
+    queuePush(command);
+};
+
+void iPixelDevice::sendPNG(const std::vector<uint8_t>& pngData) {
+    std::vector<uint8_t> command = iPixelCommands::sendPNG(pngData);
+    printPrefix();
+    Serial.print("PNG: size=");
+    Serial.print(pngData.size());
+    Serial.println(" bytes");
+    queuePush(command);
+};
+
+void iPixelDevice::sendAnimation(const std::vector<uint8_t>& gifData) {
+    std::vector<uint8_t> command = iPixelCommands::sendAnimation(gifData);
+    printPrefix();
+    Serial.print("Animation (GIF): size=");
+    Serial.print(gifData.size());
+    Serial.println(" bytes");
     queuePush(command);
 };

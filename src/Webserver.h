@@ -5,8 +5,14 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include "iPixelDeviceRegistry.h"
+#include "WiFiManager.h"
 
 AsyncWebServer server(80);
+extern WiFiManager wifiManager;
+
+// Global buffers for file uploads (outside of lambda scope)
+static std::vector<uint8_t> g_pngBuffer;
+static std::vector<uint8_t> g_gifBuffer;
 
 void init_webserver() {
     Serial.println("Initializing webserver...");
@@ -107,6 +113,8 @@ void init_webserver() {
                     getParamInt("rainbow_mode"),
                     getParamInt("matrix_height")
                 );
+            } else if (action == "setRhythmAnimationMode2") {
+                dev->setRhythmAnimationMode2(getParamInt("style"), getParamInt("animationTime"));
             }  else {
                 request->send(400, "text/plain", "Invalid action");
                 return;
@@ -115,6 +123,135 @@ void init_webserver() {
         } catch(const std::invalid_argument &ex) {
             request->send(404, "text/plain", ex.what());
         }
+  });
+
+  // PNG Upload Endpoint
+  server.on("/device/sendPNG", HTTP_POST, [](AsyncWebServerRequest* request) {
+    // This is just the response handler, body is handled below
+  }, [](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+    // Handle PNG file upload
+    if (index == 0) {
+      g_pngBuffer.clear();
+      Serial.println("[Webserver] Starting PNG upload...");
+    }
+
+    // Append data to buffer
+    g_pngBuffer.insert(g_pngBuffer.end(), data, data + len);
+
+    if (final) {
+      Serial.printf("[Webserver] PNG upload complete: %d bytes\n", g_pngBuffer.size());
+
+      // Parse MAC from query parameter
+      if (request->hasParam("mac")) {
+        String macStr = request->getParam("mac")->value();
+        NimBLEAddress addr(macStr.c_str(), 0);
+        iPixelDevice* dev = getOrCreateDevice(addr);
+
+        if (dev->connected) {
+          try {
+            dev->sendPNG(g_pngBuffer);
+            request->send(200, "text/plain", "PNG sent successfully");
+          } catch(const std::exception &ex) {
+            request->send(400, "text/plain", ex.what());
+          }
+        } else {
+          request->send(408, "text/plain", "Device is not connected");
+        }
+      } else {
+        request->send(400, "text/plain", "Missing parameter: mac");
+      }
+
+      g_pngBuffer.clear();
+    }
+  });
+
+  // GIF/Animation Upload Endpoint
+  server.on("/device/sendAnimation", HTTP_POST, [](AsyncWebServerRequest* request) {
+    // This is just the response handler, body is handled below
+  }, [](AsyncWebServerRequest* request, const String& filename, size_t index, uint8_t* data, size_t len, bool final) {
+    // Handle GIF file upload
+    if (index == 0) {
+      g_gifBuffer.clear();
+      Serial.println("[Webserver] Starting GIF upload...");
+    }
+
+    // Append data to buffer
+    g_gifBuffer.insert(g_gifBuffer.end(), data, data + len);
+
+    if (final) {
+      Serial.printf("[Webserver] GIF upload complete: %d bytes\n", g_gifBuffer.size());
+
+      // Parse MAC from query parameter
+      if (request->hasParam("mac")) {
+        String macStr = request->getParam("mac")->value();
+        NimBLEAddress addr(macStr.c_str(), 0);
+        iPixelDevice* dev = getOrCreateDevice(addr);
+
+        if (dev->connected) {
+          try {
+            dev->sendAnimation(g_gifBuffer);
+            request->send(200, "text/plain", "Animation sent successfully");
+          } catch(const std::exception &ex) {
+            request->send(400, "text/plain", ex.what());
+          }
+        } else {
+          request->send(408, "text/plain", "Device is not connected");
+        }
+      } else {
+        request->send(400, "text/plain", "Missing parameter: mac");
+      }
+
+      g_gifBuffer.clear();
+    }
+  });
+
+  // WiFi Management Endpoints
+  server.on("/wifi/networks", HTTP_GET, [](AsyncWebServerRequest* request) {
+    String response = "[";
+    for (int i = 0; i < 3; i++) {
+      const char* ssid = wifiManager.getNetworkSSID(i);
+      if (strlen(ssid) > 0) {
+        if (i > 0) response += ",";
+        response += "{\"index\":" + String(i) + ",\"ssid\":\"" + String(ssid) + "\"}";
+      }
+    }
+    response += "]";
+    request->send(200, "application/json", response);
+  });
+
+  server.on("/wifi/set", HTTP_POST, [](AsyncWebServerRequest* request) {
+    if (!request->hasParam("index") || !request->hasParam("ssid") || !request->hasParam("password")) {
+      request->send(400, "text/plain", "Missing parameters: index, ssid, password");
+      return;
+    }
+
+    int index = request->getParam("index")->value().toInt();
+    String ssid = request->getParam("ssid")->value();
+    String password = request->getParam("password")->value();
+
+    if (index < 0 || index >= 3) {
+      request->send(400, "text/plain", "Invalid index (0-2)");
+      return;
+    }
+
+    wifiManager.setNetwork(index, ssid.c_str(), password.c_str());
+    request->send(200, "text/plain", "Network updated");
+  });
+
+  server.on("/wifi/connect", HTTP_POST, [](AsyncWebServerRequest* request) {
+    if (!request->hasParam("index")) {
+      request->send(400, "text/plain", "Missing parameter: index");
+      return;
+    }
+
+    int index = request->getParam("index")->value().toInt();
+    bool success = wifiManager.attemptConnection(index);
+
+    if (success) {
+      request->send(200, "text/plain", "Connected successfully");
+    } else {
+      request->send(503, "text/plain", "Failed to connect");
+    }
   });
 
   server.begin();
