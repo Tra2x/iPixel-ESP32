@@ -12,7 +12,7 @@
  */
 namespace iPixelCommands {
 
-    bool checkRange(const char* name, int value, int minVal, int maxVal);
+    int checkRange(const char* name, int value, int minVal, int maxVal);
 
     std::vector<uint8_t> setTime(int hour, int minute, int second);
     std::vector<uint8_t> setFunMode(bool value);

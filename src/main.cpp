@@ -4,10 +4,15 @@
 #include "Bluetooth.h"
 #include "Webserver.h"
 #include "WiFiManager.h"
+#include "NTPManager.h"
+#include "DeviceManager.h"
+#include "iPixelDeviceRegistry.h"
 
 Preferences preferences;
 ImprovWiFi improvSerial(&Serial);
 WiFiManager wifiManager;
+NTPManager ntpManager;
+DeviceManager deviceManager;
 
 void loop_connected();
 void setup_connected();
@@ -81,6 +86,9 @@ void setup() {
   // Initialize WiFiManager BEFORE using it
   wifiManager.init();
 
+  // Initialize DeviceManager BEFORE using it
+  deviceManager.init();
+
   setup_wifi_pre();
   setup_improv();
   setup_wifi_post();
@@ -89,6 +97,18 @@ void setup() {
 void setup_connected() {
   init_bluetooth();
   init_webserver();
+
+  // Initialize NTP synchronization
+  ntpManager.init();
+  ntpManager.syncTime();  // Sync immediately on connection
+
+  // Auto-connect to last connected device
+  const char* lastMAC = deviceManager.getLastConnectedMAC();
+  if (lastMAC && strlen(lastMAC) > 0) {
+    Serial.printf("[Setup] Auto-connecting to last device: %s\n", lastMAC);
+    NimBLEAddress lastAddr(lastMAC, 0);
+    getOrCreateDevice(lastAddr)->connectAsync();
+  }
 }
 
 void loop() {
@@ -101,6 +121,9 @@ void loop() {
 }
 
 void loop_connected() {
+  // Handle periodic NTP synchronization
+  ntpManager.handleSync();
+
   loop_deviceregistry();
 }
 

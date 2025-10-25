@@ -51,13 +51,16 @@ public:
       String ssidKey = "ssid" + String(i);
       String passKey = "pass" + String(i);
 
-      String ssid = preferences.getString(ssidKey.c_str(), "");
-      String pass = preferences.getString(passKey.c_str(), "");
+      // Only try to read if the key exists to avoid error messages
+      if (preferences.isKey(ssidKey.c_str())) {
+        String ssid = preferences.getString(ssidKey.c_str(), "");
+        String pass = preferences.getString(passKey.c_str(), "");
 
-      if (ssid.length() > 0) {
-        ssid.toCharArray(networks[i].ssid, sizeof(networks[i].ssid));
-        pass.toCharArray(networks[i].password, sizeof(networks[i].password));
-        Serial.printf("[WiFiManager] Loaded network %d: %s\n", i, networks[i].ssid);
+        if (ssid.length() > 0) {
+          ssid.toCharArray(networks[i].ssid, sizeof(networks[i].ssid));
+          pass.toCharArray(networks[i].password, sizeof(networks[i].password));
+          Serial.printf("[WiFiManager] Loaded network %d: %s\n", i, networks[i].ssid);
+        }
       }
     }
     preferences.end();

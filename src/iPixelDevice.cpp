@@ -1,8 +1,13 @@
 #include "iPixelDevice.h"
 #include "iPixelCommands.h"
+#include "NTPManager.h"
+#include "DeviceManager.h"
 
 NimBLEUUID serviceUUID("000000fa-0000-1000-8000-00805f9b34fb");
 NimBLEUUID charUUID("0000fa02-0000-1000-8000-00805f9b34fb");
+
+extern NTPManager ntpManager;
+extern DeviceManager deviceManager;
 
 void iPixelDevice::printPrefix() {
     Serial.print("[iPixelDevice] [");
@@ -14,6 +19,17 @@ void iPixelDevice::onConnect(NimBLEClient *pClient) {
     printPrefix();
     Serial.println("Connected!");
     connected = true;
+
+    // Save this device as the last connected device
+    std::string macStr = address.toString();
+
+    // Find the device index and save it
+    for (int i = 0; i < MAX_KNOWN_DEVICES; i++) {
+        if (strcmp(deviceManager.getDeviceMAC(i), macStr.c_str()) == 0) {
+            deviceManager.saveLastConnected(i);
+            break;
+        }
+    }
 }
 
 void iPixelDevice::onDisconnect(NimBLEClient *pClient) {
@@ -126,6 +142,12 @@ void iPixelDevice::setTime(int hour, int minute, int second) {
     Serial.print(second);
     Serial.println();
     queuePush(command);
+
+    // setTime requires more processing time on the device, add a delay
+    // The exact minimum delay threshold needs to be determined through testing
+    // Current value: 350ms (50ms was too short, 350ms may be more than necessary)
+    // TODO: Fine-tune this value to find the optimal balance between reliability and performance
+    delay(350);
 }
 
 void iPixelDevice::setFunMode(bool value) {
@@ -215,7 +237,34 @@ void iPixelDevice::setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
     queuePush(command);
 };
 
-void iPixelDevice::setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24) {
+void iPixelDevice::setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24, int hour, int minute, int second) {
+    // If time parameters are not provided (-1), use NTP time
+    if (hour == -1 || minute == -1 || second == -1) {
+        if (!ntpManager.getCurrentTimeHMS(hour, minute, second)) {
+            printPrefix();
+            Serial.println("ERROR: NTP time not available, cannot set clock mode");
+            return;
+        }
+        printPrefix();
+        Serial.printf("Using NTP time: %02d:%02d:%02d\n", hour, minute, second);
+    }
+
+    // If date parameters are not provided (-1), use NTP date
+    if (year == -1 || month == -1 || day == -1 || dayOfWeek == -1) {
+        if (!ntpManager.getCurrentDate(year, month, day, dayOfWeek)) {
+            printPrefix();
+            Serial.println("ERROR: NTP date not available, cannot set clock mode");
+            return;
+        }
+        printPrefix();
+        Serial.printf("Using NTP date: %02d-%02d-%02d (dayOfWeek=%d)\n", day, month, year, dayOfWeek);
+    }
+
+    // First, send setTime command with the time values
+    setTime(hour, minute, second);
+
+    // Then send setClockMode command
+    // Note: setTime() already includes a 350ms delay to allow the device to process it
     std::vector<uint8_t> command = iPixelCommands::setClockMode(style, dayOfWeek, year, month, day, showDate, format24);
     printPrefix();
     Serial.print("Clock Mode: style=");
@@ -232,6 +281,12 @@ void iPixelDevice::setClockMode(int style, int dayOfWeek, int year, int month, i
     Serial.print(year);
     Serial.print(", dayOfWeek=");
     Serial.print(dayOfWeek);
+    Serial.print(", time=");
+    Serial.print(hour);
+    Serial.print(":");
+    Serial.print(minute);
+    Serial.print(":");
+    Serial.print(second);
     Serial.println();
     queuePush(command);
 };

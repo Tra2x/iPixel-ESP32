@@ -41,7 +41,7 @@ public:
     void ledOn();
     void deleteScreen(int screen);
     void setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b);
-    void setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24);
+    void setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24, int hour = -1, int minute = -1, int second = -1);
     void setRhythmLevelMode(int style, const int levels[11]);
     void setRhythmAnimationMode(int style, int frame);
     void setRhythmAnimationMode2(int style, int animationTime);

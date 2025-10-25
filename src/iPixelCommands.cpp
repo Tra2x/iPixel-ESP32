@@ -2,7 +2,13 @@
 
 namespace iPixelCommands {
 
-    bool checkRange(const char* name, int value, int minVal, int maxVal) {
+    int checkRange(const char* name, int value, int minVal, int maxVal) {
+        // If value is -1, use the minimum value as default
+        if (value == -1) {
+            Serial.printf("[iPixelCommands] %s not provided, using default: %d\n", name, minVal);
+            return minVal;
+        }
+
         if (value < minVal || value > maxVal) {
             Serial.print("EXCEPTION: ");
             Serial.print(name);
@@ -13,15 +19,14 @@ namespace iPixelCommands {
             Serial.print("), got ");
             Serial.println(value);
             throw std::invalid_argument(std::string(name) + " out of range (" + std::to_string(minVal) + "-" + std::to_string(maxVal) + ") got " + std::to_string(value));
-            return false;
         }
-        return true;
+        return value;
     }
 
     std::vector<uint8_t> setTime(int hour, int minute, int second) {
-        checkRange("Hour", hour, 0, 23);
-        checkRange("Minute", minute, 0, 59);
-        checkRange("Second", second, 0, 59);
+        hour = checkRange("Hour", hour, 0, 23);
+        minute = checkRange("Minute", minute, 0, 59);
+        second = checkRange("Second", second, 0, 59);
 
         std::vector<uint8_t> frame(8);
         frame[0] = 0x08;
@@ -48,7 +53,7 @@ namespace iPixelCommands {
     }
         
     std::vector<uint8_t> setOrientation(int orientation) {
-        checkRange("Orientation", orientation, 0, 2);
+        orientation = checkRange("Orientation", orientation, 0, 2);
 
         std::vector<uint8_t> frame(5);
         frame[0] = 0x05;
@@ -71,7 +76,7 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setBrightness(int brightness) {
-        checkRange("Brightness", brightness, 0, 100);
+        brightness = checkRange("Brightness", brightness, 0, 100);
 
         std::vector<uint8_t> frame(5);
         frame[0] = 0x05;
@@ -84,7 +89,7 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setSpeed(int speed) {
-        checkRange("Speed", speed, 0, 100);
+        speed = checkRange("Speed", speed, 0, 100);
 
         std::vector<uint8_t> frame(4);
         frame[0] = 0x05;
@@ -118,7 +123,7 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> deleteScreen(int screen) {
-        checkRange("Screen", screen, 0, 10);
+        screen = checkRange("Screen", screen, 0, 10);
 
         std::vector<uint8_t> frame(6);
         frame[0] = 0x07;
@@ -132,11 +137,11 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b) {
-        checkRange("X", x, 0, 255);
-        checkRange("Y", y, 0, 255);
-        checkRange("R", r, 0, 255);
-        checkRange("G", g, 0, 255);
-        checkRange("B", b, 0, 255);
+        x = checkRange("X", x, 0, 255);
+        y = checkRange("Y", y, 0, 255);
+        r = checkRange("R", r, 0, 255);
+        g = checkRange("G", g, 0, 255);
+        b = checkRange("B", b, 0, 255);
 
         std::vector<uint8_t> frame(10);
         frame[0] = 0x0A;
@@ -154,11 +159,11 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setClockMode(int style, int dayOfWeek, int year, int month, int day, bool showDate, bool format24) {
-        checkRange("Style", style, 1, 8);
-        checkRange("Day of Week", dayOfWeek, 1, 7);
-        checkRange("Year", year, 0, 99);
-        checkRange("Month", month, 1, 12);
-        checkRange("Day", day, 1, 31);
+        style = checkRange("Style", style, 1, 8);
+        dayOfWeek = checkRange("Day of Week", dayOfWeek, 1, 7);
+        year = checkRange("Year", year, 0, 99);
+        month = checkRange("Month", month, 1, 12);
+        day = checkRange("Day", day, 1, 31);
 
         std::vector<uint8_t> frame(11);
         frame[0] = 0x0B;
@@ -177,12 +182,15 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setRhythmLevelMode(int style, const int levels[11]) {
-        checkRange("Style", style, 0, 4);
-        for (int i = 0; i < 11; i++) checkRange("Level", levels[i], 0, 15);
+        style = checkRange("Style", style, 0, 4);
+        for (int i = 0; i < 11; i++) {
+            int level = checkRange("Level", levels[i], 0, 15);
+            // Note: We can't modify the const array, so we just validate
+        }
 
         std::vector<uint8_t> frame(5 + 11);
         frame[0] = 0x10;
-        frame[1] = 0x00; 
+        frame[1] = 0x00;
         frame[2] = 0x01;
         frame[3] = 0x02;
         frame[4] = (uint8_t)style;
@@ -193,8 +201,8 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setRhythmAnimationMode(int style, int frameNumber) {
-        checkRange("Style", style, 0, 1);
-        checkRange("Frame", frameNumber, 0, 7);
+        style = checkRange("Style", style, 0, 1);
+        frameNumber = checkRange("Frame", frameNumber, 0, 7);
 
         std::vector<uint8_t> frame(6);
         frame[0] = 0x06;
@@ -208,8 +216,8 @@ namespace iPixelCommands {
     }
 
     std::vector<uint8_t> setRhythmAnimationMode2(int style, int animationTime) {
-        checkRange("Style", style, 0, 1);
-        checkRange("Animation Time", animationTime, 0, 7);
+        style = checkRange("Style", style, 0, 1);
+        animationTime = checkRange("Animation Time", animationTime, 0, 7);
 
         std::vector<uint8_t> frame(6);
         frame[0] = 0x06;

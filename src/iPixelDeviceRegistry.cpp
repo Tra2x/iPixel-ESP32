@@ -1,6 +1,8 @@
 #include "iPixelDeviceRegistry.h"
+#include "DeviceManager.h"
 
 std::vector<iPixelDevice*> knownDevices;
+extern DeviceManager deviceManager;
 
 iPixelDevice* getOrCreateDevice(const BLEAddress& addr) {
     for (auto* dev : knownDevices) {
@@ -11,6 +13,11 @@ iPixelDevice* getOrCreateDevice(const BLEAddress& addr) {
 
     iPixelDevice* newDev = new iPixelDevice(addr);
     knownDevices.push_back(newDev);
+
+    // Save the device MAC address to persistent storage
+    std::string macStr = addr.toString();
+    deviceManager.addDevice(macStr.c_str());
+
     return newDev;
 }
 
