@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iPixel ESP32 Control Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .device-selector {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .device-selector label {
+            font-weight: bold;
+            margin-right: 10px;
+            color: #333;
+        }
+
+        .device-selector select {
+            padding: 10px 15px;
+            border: 2px solid #667eea;
+            border-radius: 5px;
+            font-size: 1em;
+            cursor: pointer;
+            min-width: 300px;
+        }
+
+        .device-selector button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .device-selector button:hover {
+            background: #764ba2;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            flex: 1;
+            min-width: 100px;
+            padding: 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .button-small {
+            flex: 0 1 auto;
+            padding: 8px 12px;
+            font-size: 0.9em;
+        }
+
+        .color-picker-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+        }
+
+        .color-input {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .color-input input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .color-input input[type="number"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            display: none;
+            z-index: 1000;
+            max-width: 400px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+            border-left: 4px solid #28a745;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+            border-left: 4px solid #dc3545;
+        }
+
+        .file-upload {
+            border: 2px dashed #667eea;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-upload:hover {
+            background: #f0f4ff;
+            border-color: #764ba2;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .file-name {
+            margin-top: 10px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-group input[type="range"] {
+            flex: 1;
+        }
+
+        .slider-group span {
+            min-width: 50px;
+            text-align: right;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .levels-grid {
+            display: grid;
+            grid-template-columns: repeat(11, 1fr);
+            gap: 5px;
+        }
+
+        .level-input {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .level-input input {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            text-align: center;
+        }
+
+        .level-input label {
+            font-size: 0.8em;
+            margin-top: 3px;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8em;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .device-selector select {
+                min-width: 100%;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎨 iPixel ESP32 Control Panel</h1>
+            <p>Interaktive Steuerung aller Funktionen</p>
+        </header>
+
+        <div class="device-selector">
+            <label for="deviceSelect">Gerät auswählen:</label>
+            <select id="deviceSelect">
+                <option value="">Geräte werden geladen...</option>
+            </select>
+            <button onclick="loadDevices()">🔄 Aktualisieren</button>
+        </div>
+
+        <div class="grid">
+            <!-- Zeit & Uhr -->
+            <div class="card">
+                <h2>⏰ Zeit & Uhr</h2>
+                <div class="form-group">
+                    <label>Aktuelle Zeit setzen</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                        <input type="number" id="hour" min="0" max="23" placeholder="Stunde">
+                        <input type="number" id="minute" min="0" max="59" placeholder="Minute">
+                        <input type="number" id="second" min="0" max="59" placeholder="Sekunde">
+                    </div>
+                </div>
+                <button onclick="sendCommand('setTime')">Zeit setzen</button>
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Uhr-Modus:</label>
+                    <select id="clockMode">
+                        <option value="0">Aus</option>
+                        <option value="1">Digital</option>
+                        <option value="2">Analog</option>
+                    </select>
+                </div>
+                <button onclick="sendCommand('setClockMode')">Uhr-Modus setzen</button>
+                <div id="status-time" class="status"></div>
+            </div>
+
+            <!-- Helligkeit & Geschwindigkeit -->
+            <div class="card">
+                <h2>💡 Helligkeit & Geschwindigkeit</h2>
+                <div class="form-group">
+                    <label>Helligkeit: <span id="brightnessValue">128</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="brightness" min="0" max="255" value="128" 
+                               oninput="document.getElementById('brightnessValue').textContent = this.value">
+                    </div>
+                </div>
+                <button onclick="sendCommand('setBrightness')">Helligkeit setzen</button>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Geschwindigkeit: <span id="speedValue">50</span></label>
+                    <div class="slider-group">
+                        <input type="range" id="speed" min="0" max="255" value="50"
+                               oninput="document.getElementById('speedValue').textContent = this.value">
+                    </div>
+                </div>
+                <button onclick="sendCommand('setSpeed')">Geschwindigkeit setzen</button>
+                <div id="status-brightness" class="status"></div>
+            </div>
+
+            <!-- LED Kontrolle -->
+            <div class="card">
+                <h2>🔌 LED Kontrolle</h2>
+                <div class="button-group">
+                    <button onclick="sendCommand('ledOn')">LED An</button>
+                    <button onclick="sendCommand('ledOff')">LED Aus</button>
+                    <button onclick="sendCommand('clear')">Löschen</button>
+                </div>
+                <div id="status-led" class="status"></div>
+            </div>
+
+            <!-- Pixel Zeichnen -->
+            <div class="card">
+                <h2>🎨 Pixel Zeichnen</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <input type="number" id="pixelX" min="0" max="31" placeholder="X (0-31)">
+                    <input type="number" id="pixelY" min="0" max="31" placeholder="Y (0-31)">
+                </div>
+                <div class="color-picker-group" style="margin-top: 10px;">
+                    <div class="color-input">
+                        <input type="color" id="colorR" value="#FF0000">
+                        <input type="number" id="colorRNum" min="0" max="255" value="255">
+                    </div>
+                    <div class="color-input">
+                        <input type="color" id="colorG" value="#00FF00">
+                        <input type="number" id="colorGNum" min="0" max="255" value="0">
+                    </div>
+                    <div class="color-input">
+                        <input type="color" id="colorB" value="#0000FF">
+                        <input type="number" id="colorBNum" min="0" max="255" value="0">
+                    </div>
+                </div>
+                <button onclick="sendCommand('setPixel')" style="margin-top: 10px;">Pixel setzen</button>
+                <button onclick="sendCommand('fill')" style="margin-top: 5px;">Füllen (Weiß)</button>
+                <div id="status-pixel" class="status"></div>
+            </div>
+
+            <!-- Text -->
+            <div class="card">
+                <h2>📝 Text</h2>
+                <div class="form-group">
+                    <label>Text:</label>
+                    <input type="text" id="textContent" placeholder="Text eingeben...">
+                </div>
+                <div class="form-group">
+                    <label>Animation:</label>
+                    <input type="number" id="textAnimation" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Speicherplatz:</label>
+                    <input type="number" id="textSaveSlot" min="0" value="0">
+                </div>
+                <div class="form-group">
+                    <label>Geschwindigkeit:</label>
+                    <input type="number" id="textSpeed" min="0" value="50">
+                </div>
+                <button onclick="sendCommand('sendText')">Text senden</button>
+                <div id="status-text" class="status"></div>
+            </div>
+
+            <!-- Datei Upload -->
+            <div class="card">
+                <h2>📤 Datei Upload</h2>
+                <div class="form-group">
+                    <label>PNG Bild:</label>
+                    <div class="file-upload" onclick="document.getElementById('pngFile').click()">
+                        <div>📁 PNG Datei auswählen</div>
+                        <div class="file-name" id="pngFileName"></div>
+                    </div>
+                    <input type="file" id="pngFile" accept=".png" onchange="updateFileName('png')">
+                </div>
+                <button onclick="sendCommand('sendPNG')">PNG senden</button>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>GIF Animation:</label>
+                    <div class="file-upload" onclick="document.getElementById('gifFile').click()">
+                        <div>📁 GIF Datei auswählen</div>
+                        <div class="file-name" id="gifFileName"></div>
+                    </div>
+                    <input type="file" id="gifFile" accept=".gif" onchange="updateFileName('gif')">
+                </div>
+                <button onclick="sendCommand('sendAnimation')">GIF senden</button>
+                <div id="status-upload" class="status"></div>
+            </div>
+
+            <!-- Einstellungen -->
+            <div class="card">
+                <h2>⚙️ Einstellungen</h2>
+                <div class="form-group">
+                    <label>Orientierung:</label>
+                    <select id="orientation">
+                        <option value="0">Normal</option>
+                        <option value="1">90°</option>
+                        <option value="2">180°</option>
+                        <option value="3">270°</option>
+                    </select>
+                </div>
+                <button onclick="sendCommand('setOrientation')">Orientierung setzen</button>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>
+                        <input type="checkbox" id="funMode"> Fun Mode aktivieren
+                    </label>
+                </div>
+                <button onclick="sendCommand('setFunMode')">Fun Mode setzen</button>
+                <div id="status-settings" class="status"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="control.js"></script>
+</body>
+</html>
+

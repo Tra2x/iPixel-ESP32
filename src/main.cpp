@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ImprovWiFiLibrary.h>
 #include <Preferences.h>
+#include <SPIFFS.h>
 #include "Bluetooth.h"
 #include "Webserver.h"
 #include "WiFiManager.h"
@@ -82,6 +83,13 @@ void setup() {
   delay(2000);
   Serial.begin(115200);
   Serial.println("[Setup] Hello World! Let's hope we can pixel together!");
+
+  // Initialize SPIFFS for web files
+  if (!SPIFFS.begin(true)) {
+    Serial.println("[Setup] SPIFFS Mount Failed");
+  } else {
+    Serial.println("[Setup] SPIFFS Mounted Successfully");
+  }
 
   // Initialize WiFiManager BEFORE using it
   wifiManager.init();

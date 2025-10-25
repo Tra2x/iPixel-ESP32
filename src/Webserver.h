@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
 #include "iPixelDeviceRegistry.h"
 #include "WiFiManager.h"
 #include "DeviceManager.h"
@@ -18,6 +19,16 @@ static std::vector<uint8_t> g_gifBuffer;
 
 void init_webserver() {
     Serial.println("Initializing webserver...");
+
+    // Serve index.html for root
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/web/index.html", "text/html");
+    });
+
+    // Serve control.js
+    server.on("/control.js", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send(SPIFFS, "/web/control.js", "application/javascript");
+    });
 
     server.onNotFound([](AsyncWebServerRequest* request) {
         String url = request->url();

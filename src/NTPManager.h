@@ -23,10 +23,24 @@ public:
    */
   void init() {
     Serial.println("[NTP] Initializing NTP Manager...");
-    // Set timezone (adjust to your timezone)
-    // For example: "CET-1CEST,M3.5.0,M10.5.0" for Central European Time
-    configTime(0, 0, NTP_SERVER);  // UTC timezone
-    Serial.println("[NTP] NTP Manager initialized!");
+
+    // Configure time for Germany (CET/CEST) with explicit DST rules
+    // configTime(gmtOffset_sec, daylightOffset_sec, ntpServer)
+    // gmtOffset_sec = 1 hour = 3600 seconds (CET = UTC+1, winter time)
+    // daylightOffset_sec = 1 hour = 3600 seconds (CEST = UTC+2, summer time adds 1 more hour)
+    configTime(3600, 3600, NTP_SERVER);
+
+    // Set the TZ environment variable with explicit DST transition rules
+    // Format: "STD offset DST offset,start,end"
+    // CET-1 = Central European Time (UTC+1)
+    // CEST-2 = Central European Summer Time (UTC+2)
+    // M3.5.0/2 = Last Sunday of March at 2:00 AM (DST starts)
+    // M10.5.0/3 = Last Sunday of October at 3:00 AM (DST ends)
+    // This ensures DST transitions work even if WiFi is disconnected
+    setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
+    tzset();
+
+    Serial.println("[NTP] NTP Manager initialized (Germany timezone CET/CEST with DST)!");
   }
 
   /**
@@ -54,13 +68,15 @@ public:
     syncInProgress = true;
     Serial.println("[NTP] Starting NTP synchronization...");
 
-    // Request time from NTP server
-    configTime(0, 0, NTP_SERVER);
+    // Request time from NTP server with Germany timezone
+    // gmtOffset_sec = 3600 (CET = UTC+1)
+    // daylightOffset_sec = 3600 (CEST = UTC+2, adds 1 more hour)
+    configTime(3600, 3600, NTP_SERVER);
 
     // Wait for time to be set (with timeout)
     unsigned long startTime = millis();
     time_t now_time = time(nullptr);
-    
+
     while (now_time < 24 * 3600 && (millis() - startTime) < NTP_SYNC_TIMEOUT_MS) {
       delay(100);
       now_time = time(nullptr);
@@ -71,17 +87,19 @@ public:
     if (now_time > 24 * 3600) {
       timeSet = true;
       lastSyncTime = millis();
-      
+
       struct tm timeinfo;
       localtime_r(&now_time, &timeinfo);
-      
-      Serial.printf("[NTP] Time synchronized: %04d-%02d-%02d %02d:%02d:%02d\n",
+
+      // Display time in German timezone (automatically adjusted by localtime_r)
+      Serial.printf("[NTP] Time synchronized (Germany): %04d-%02d-%02d %02d:%02d:%02d (DST: %s)\n",
                     timeinfo.tm_year + 1900,
                     timeinfo.tm_mon + 1,
                     timeinfo.tm_mday,
                     timeinfo.tm_hour,
                     timeinfo.tm_min,
-                    timeinfo.tm_sec);
+                    timeinfo.tm_sec,
+                    timeinfo.tm_isdst > 0 ? "yes" : "no");
       return true;
     } else {
       Serial.println("[NTP] NTP synchronization failed (timeout)");
@@ -159,12 +177,46 @@ public:
 
   /**
    * Set timezone for local time calculation
-   * Example: "CET-1CEST,M3.5.0,M10.5.0" for Central European Time
+   * Example: "CET-1CEST-2,M3.5.0/2,M10.5.0/3" for Central European Time with DST
    */
   void setTimezone(const char *tzinfo) {
     setenv("TZ", tzinfo, 1);
     tzset();
     Serial.printf("[NTP] Timezone set to: %s\n", tzinfo);
+  }
+
+  /**
+   * Get current timezone name (CET or CEST)
+   */
+  const char* getCurrentTimezoneName() {
+    struct tm timeinfo;
+    if (!getCurrentTime(timeinfo)) {
+      return "UNKNOWN";
+    }
+    return timeinfo.tm_isdst > 0 ? "CEST (UTC+2)" : "CET (UTC+1)";
+  }
+
+  /**
+   * Print current time and timezone info for debugging
+   */
+  void printTimeInfo() {
+    if (!timeSet) {
+      Serial.println("[NTP] Time not yet synchronized");
+      return;
+    }
+
+    struct tm timeinfo;
+    time_t now = time(nullptr);
+    localtime_r(&now, &timeinfo);
+
+    Serial.printf("[NTP] Current time: %04d-%02d-%02d %02d:%02d:%02d (%s)\n",
+                  timeinfo.tm_year + 1900,
+                  timeinfo.tm_mon + 1,
+                  timeinfo.tm_mday,
+                  timeinfo.tm_hour,
+                  timeinfo.tm_min,
+                  timeinfo.tm_sec,
+                  getCurrentTimezoneName());
   }
 };
 
